@@ -40,6 +40,11 @@ Change log:
 #include    <linux/if_ether.h>
 #include    <time.h>
 
+// open
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+
 #if (BYTE_ORDER == LITTLE_ENDIAN)
 #undef BIG_ENDIAN_SUPPORT
 #endif

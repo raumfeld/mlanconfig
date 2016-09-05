@@ -37,6 +37,8 @@ Change log:
 /** Maximum number of total private ioctl calls supported */
 #define IW_MAX_PRIV_NUM     1024
 
+#define HOSTCMD_PATH "/sys/kernel/debug/mwifiex/wlan0/hostcmd"
+
 /********************************************************
 		Local Variables
 ********************************************************/
@@ -370,11 +372,6 @@ process_host_cmd(int argc, char *argv[])
 	int ioctl_val, subioctl_val;
 	FILE *fp = NULL;
 
-	if (get_priv_ioctl("hostcmd",
-			   &ioctl_val, &subioctl_val) == MLAN_STATUS_FAILURE) {
-		return -EOPNOTSUPP;
-	}
-
 	if (argc < 5) {
 		printf("Error: invalid no of arguments\n");
 		printf("Syntax: ./mlanconfig mlanX hostcmd <hostcmd.conf> <cmdname>\n");
@@ -399,20 +396,28 @@ process_host_cmd(int argc, char *argv[])
 	if (ret == MLAN_STATUS_FAILURE)
 		goto _exit_;
 
-	hostcmd = (HostCmd_DS_GEN *) buf;
-	memset(&iwr, 0, sizeof(iwr));
-	strncpy(iwr.ifr_name, dev_name, IFNAMSIZ - 1);
-	iwr.u.data.pointer = (t_u8 *) hostcmd;
-	iwr.u.data.length = le16_to_cpu(hostcmd->size);
-
-	iwr.u.data.flags = 0;
-	if (ioctl(sockfd, ioctl_val, &iwr)) {
-		fprintf(stderr,
-			"mlanconfig: MLANHOSTCMD is not supported by %s\n",
-			dev_name);
+	int fd = open(HOSTCMD_PATH, O_RDWR);
+	if (fd < 0) {
+		printf("failed to open debugfs file\n");
 		ret = MLAN_STATUS_FAILURE;
 		goto _exit_;
 	}
+
+	int count = write(fd, buf, MRVDRV_SIZE_OF_CMD_BUFFER);
+
+	if (count != MRVDRV_SIZE_OF_CMD_BUFFER) {
+		printf("Error writing data\n");
+		ret = MLAN_STATUS_FAILURE;
+		goto _exit_;
+	}
+
+	count = read(fd, buf, MRVDRV_SIZE_OF_CMD_BUFFER);
+	if (!count) {
+		printf("Error reading data\n");
+		ret = MLAN_STATUS_FAILURE;
+		goto _exit_;
+	}
+
 	ret = process_host_cmd_resp(buf);
 
 _exit_:
